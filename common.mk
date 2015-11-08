@@ -31,5 +31,5 @@ PRODUCT_PACKAGES += \
 
 # STE Compat Symbols
 PRODUCT_PACKAGES += \
-    libste_symbols \
+    libcamera_symbols \
     libicuuc_51
