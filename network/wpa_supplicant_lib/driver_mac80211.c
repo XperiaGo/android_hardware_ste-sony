@@ -29,6 +29,10 @@
 #define WPA_EVENT_DRIVER_STATE          "CTRL-EVENT-DRIVER-STATE "
 #define DRV_NUMBER_SEQUENTIAL_ERRORS     4
 
+#define BLUETOOTH_COEXISTENCE_MODE_ENABLED   0
+#define BLUETOOTH_COEXISTENCE_MODE_DISABLED  1
+#define BLUETOOTH_COEXISTENCE_MODE_SENSE     2
+
 static int g_drv_errors = 0;
 
 static void wpa_driver_send_hang_msg(struct wpa_driver_nl80211_data *drv)
@@ -38,6 +42,21 @@ static void wpa_driver_send_hang_msg(struct wpa_driver_nl80211_data *drv)
 		g_drv_errors = 0;
 		wpa_msg(drv->ctx, MSG_INFO, WPA_EVENT_DRIVER_STATE "HANGED");
 	}
+}
+
+static int wpa_driver_toggle_btcoex_state(char state)
+{
+	int ret;
+	int fd = open("/sys/devices/platform/wl1271/bt_coex_state", O_RDWR, 0);
+	if (fd == -1)
+		return -1;
+
+	ret = write(fd, &state, sizeof(state));
+	close(fd);
+
+	wpa_printf(MSG_DEBUG, "%s:  set btcoex state to '%c' result = %d", __func__,
+		   state, ret);
+	return ret;
 }
 
 int wpa_driver_nl80211_driver_cmd(void *priv, char *cmd, char *buf,
@@ -56,6 +75,16 @@ int wpa_driver_nl80211_driver_cmd(void *priv, char *cmd, char *buf,
 		wpa_msg(drv->ctx, MSG_INFO, WPA_EVENT_DRIVER_STATE "STARTED");
 	} else if (os_strcasecmp(cmd, "RELOAD") == 0) {
 		wpa_msg(drv->ctx, MSG_INFO, WPA_EVENT_DRIVER_STATE "HANGED");
+	} else if (os_strncasecmp(cmd, "BTCOEXMODE ", 11) == 0) {
+		int mode = atoi(cmd + 11);
+		if (mode == BLUETOOTH_COEXISTENCE_MODE_DISABLED) { /* disable BT-coex */
+			ret = wpa_driver_toggle_btcoex_state('0');
+		} else if (mode == BLUETOOTH_COEXISTENCE_MODE_SENSE) { /* enable BT-coex */
+			ret = wpa_driver_toggle_btcoex_state('1');
+		} else {
+			wpa_printf(MSG_DEBUG, "invalid btcoex mode: %d", mode);
+			ret = -1;
+		}
 	} else if (os_strcasecmp(cmd, "MACADDR") == 0) {
 		u8 macaddr[ETH_ALEN] = {};
 
